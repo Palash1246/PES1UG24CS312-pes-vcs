@@ -23,7 +23,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
-
+#include "pes.h"
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
 // Find an index entry by path (linear scan).
@@ -146,12 +146,16 @@ int index_load(Index *index) {
         IndexEntry *e = &index->entries[index->count++];
 
         char hash_hex[65];
-        sscanf(line, "%o %64s %ld %ld %s",
-               &e->mode, hash_hex, &e->mtime, &e->size, e->path);
+
+        if (sscanf(line, "%o %64s %lu %u %s",
+                   &e->mode, hash_hex, &e->mtime_sec, &e->size, e->path) != 5) {
+            index->count--;   // undo increment
+            continue;
+        }
 
         // convert hex → binary
         for (int i = 0; i < 32; i++) {
-            sscanf(hash_hex + i*2, "%2hhx", &e->id.hash[i]);
+            sscanf(hash_hex + i*2, "%2hhx", &e->hash.hash[i]);
         }
     }
 
@@ -168,21 +172,21 @@ int index_load(Index *index) {
 //   - rename                           : atomically moving the temp file over the old index
 //
 // Returns 0 on success, -1 on error.
-int index_save(Index *index) {
+int index_save(const Index *index) {
     FILE *f = fopen(".pes/index.tmp", "w");
     if (!f) return -1;
 
     for (int i = 0; i < index->count; i++) {
-        IndexEntry *e = &index->entries[i];
+        const IndexEntry *e = &index->entries[i];
 
         char hex[65];
         for (int j = 0; j < 32; j++) {
-            sprintf(hex + j*2, "%02x", e->id.hash[j]);
+            sprintf(hex + j*2, "%02x", e->hash.hash[j]);
         }
         hex[64] = '\0';
 
-        fprintf(f, "%o %s %ld %ld %s\n",
-                e->mode, hex, e->mtime, e->size, e->path);
+        fprintf(f, "%o %s %lu %u %s\n",
+                e->mode, hex, e->mtime_sec, e->size, e->path);
     }
 
     fclose(f);
@@ -206,7 +210,17 @@ int index_add(Index *index, const char *path) {
     if (!f) return -1;
 
     void *data = malloc(st.st_size);
-    fread(data, 1, st.st_size, f);
+    if (!data) {
+        fclose(f);
+        return -1;
+    }
+
+    if (fread(data, 1, st.st_size, f) != (size_t)st.st_size) {
+        free(data);
+        fclose(f);
+        return -1;
+    }
+
     fclose(f);
 
     ObjectID id;
@@ -224,9 +238,14 @@ int index_add(Index *index, const char *path) {
 
     strcpy(e->path, path);
     e->mode = 0100644;
-    e->mtime = st.st_mtime;
+    e->mtime_sec = st.st_mtime;
     e->size = st.st_size;
-    memcpy(e->id.hash, id.hash, 32);
+
+    memcpy(e->hash.hash, id.hash, 32);
+
+    if (index_save(index) != 0) {
+        return -1;
+    }
 
     return 0;
 }
