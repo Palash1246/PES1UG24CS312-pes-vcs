@@ -196,9 +196,18 @@ int head_update(const ObjectID *new_commit) {
 int commit_create(const char *message, ObjectID *commit_id_out) {
     // TODO: Implement commit creation
     // (See Lab Appendix for logical steps)
- ObjectID tree_id;
+
+
+  // 1. Generate tree
+    ObjectID tree_id;
     if (tree_from_index(&tree_id) != 0) {
         return -1;
     }
+
+    // 2. Read parent (if exists)
+    ObjectID parent_id;
+    int has_parent = (head_read(&parent_id) == 0);
+
+
 
 }
