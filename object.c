@@ -97,34 +97,44 @@ int object_exists(const ObjectID *id) {
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
 const char *type_str;
 switch (type) {
-    case OBJ_BLOB: type_str = "blob"; break;
-    case OBJ_TREE: type_str = "tree"; break;
+    case OBJ_BLOB:   type_str = "blob"; break;
+    case OBJ_TREE:   type_str = "tree"; break;
     case OBJ_COMMIT: type_str = "commit"; break;
     default: return -1;
 }
 
+// header
 char header[64];
 int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len);
+if (header_len < 0) return -1;
 
+// buffer
 size_t total_size = header_len + 1 + len;
 unsigned char *buffer = malloc(total_size);
 if (!buffer) return -1;
 
 memcpy(buffer, header, header_len);
 buffer[header_len] = '\0';
-memcpy(buffer + header_len + 1, data, len);
 
+if (len > 0 && data) {
+    memcpy(buffer + header_len + 1, data, len);
+}
+
+// hash
 unsigned char hash[32];
 SHA256(buffer, total_size, hash);
 
+// store hash
 memcpy(id_out->hash, hash, 32);
 
+// hex
 char hex[65];
 for (int i = 0; i < 32; i++) {
     sprintf(hex + i*2, "%02x", hash[i]);
 }
 hex[64] = '\0';
 
+// dirs
 mkdir(".pes", 0755);
 mkdir(".pes/objects", 0755);
 
@@ -132,14 +142,17 @@ char dir[256];
 snprintf(dir, sizeof(dir), ".pes/objects/%.2s", hex);
 mkdir(dir, 0755);
 
+// path
 char path[512];
 snprintf(path, sizeof(path), "%s/%s", dir, hex + 2);
 
+// dedup
 if (access(path, F_OK) == 0) {
     free(buffer);
     return 0;
 }
 
+// temp write
 char tmp[512];
 snprintf(tmp, sizeof(tmp), "%s.tmp", path);
 
@@ -149,8 +162,11 @@ if (fd < 0) {
     return -1;
 }
 
-if (write(fd, buffer, total_size) != total_size) {
+// write
+ssize_t written = write(fd, buffer, total_size);
+if (written != (ssize_t)total_size) {
     close(fd);
+    unlink(tmp);
     free(buffer);
     return -1;
 }
@@ -158,7 +174,12 @@ if (write(fd, buffer, total_size) != total_size) {
 fsync(fd);
 close(fd);
 
-rename(tmp, path);
+// rename
+if (rename(tmp, path) != 0) {
+    unlink(tmp);
+    free(buffer);
+    return -1;
+}
 
 free(buffer);
 return 0;
