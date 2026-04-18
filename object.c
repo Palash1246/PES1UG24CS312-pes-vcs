@@ -216,7 +216,11 @@ return 0;
 // The caller is responsible for calling free(*data_out).
 // Returns 0 on success, -1 on error (file not found, corrupt, etc.).
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
-    // 1) Convert binary hash -> hex
+if (!id || !type_out || !data_out || !len_out) return -1;
+
+*data_out = NULL;
+*len_out = 0;
+// 1) Convert binary hash -> hex
     char hex[65];
     for (int i = 0; i < 32; i++) {
         sprintf(hex + i * 2, "%02x", id->hash[i]);   // ⚠️ change 'hash' if your struct uses a different field
@@ -234,6 +238,10 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     // 4) Read entire file
     fseek(f, 0, SEEK_END);
     long file_size = ftell(f);
+    if (file_size <= 0) {
+    fclose(f);
+    return -1;
+    }
     rewind(f);
 
     unsigned char *buffer = malloc(file_size);
