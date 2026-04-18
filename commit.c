@@ -229,4 +229,13 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     strncpy(c.message, message, sizeof(c.message) - 1);
 
 
+ // 4. Serialize commit
+    void *data = NULL;
+    size_t len = 0;
+
+    if (commit_serialize(&c, &data, &len) != 0) {
+        return -1;
+    }
+
+
 }
