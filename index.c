@@ -143,7 +143,11 @@ int index_load(Index *index) {
     char line[1024];
 
     while (fgets(line, sizeof(line), f)) {
-        IndexEntry *e = &index->entries[index->count++];
+if (index->count >= MAX_INDEX_ENTRIES) {
+    break;
+}
+
+       IndexEntry *e = &index->entries[index->count++];
 
         char hash_hex[65];
 
