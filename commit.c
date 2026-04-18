@@ -208,6 +208,25 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     ObjectID parent_id;
     int has_parent = (head_read(&parent_id) == 0);
 
+ // 3. Fill commit struct
+    Commit c;
+    memset(&c, 0, sizeof(c));
+
+    c.tree = tree_id;
+
+    if (has_parent) {
+        c.parent = parent_id;
+        c.has_parent = 1;
+    } else {
+        c.has_parent = 0;
+    }
+
+    c.timestamp = time(NULL);
+
+    const char *author = pes_author();
+    strncpy(c.author, author, sizeof(c.author) - 1);
+
+    strncpy(c.message, message, sizeof(c.message) - 1);
 
 
 }
