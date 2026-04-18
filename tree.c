@@ -140,5 +140,15 @@ for (int i = 0; i < index->count; i++) {
     e->mode = index->entries[i].mode;
     memcpy(e->hash, index->entries[i].id.hash, 32);
 }
+
+void *data = NULL;
+size_t len = 0;
+
+if (tree_serialize(&tree, &data, &len) != 0) {
+    ObjectID id;
+    memset(&id, 0, sizeof(id));
+    return id;
+}
+
 }
 
