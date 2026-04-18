@@ -133,9 +133,12 @@ int tree_from_index(ObjectID *id_out) {
 Tree tree;
 tree.count = 0;
 
-// placeholder return
-ObjectID id;
-memset(&id, 0, sizeof(id));
-return id;
+for (int i = 0; i < index->count; i++) {
+    TreeEntry *e = &tree.entries[tree.count++];
+
+    strcpy(e->name, index->entries[i].path);
+    e->mode = index->entries[i].mode;
+    memcpy(e->hash, index->entries[i].id.hash, 32);
+}
 }
 
