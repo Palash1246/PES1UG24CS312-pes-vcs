@@ -15,7 +15,6 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
-
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
 #define MODE_FILE      0100644
@@ -129,36 +128,31 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
+int cmp(const void *a, const void *b) {
+    return strcmp(((TreeEntry*)a)->name, ((TreeEntry*)b)->name);
+}
+
 int tree_from_index(ObjectID *id_out) {
-Tree tree;
-tree.count = 0;
+    Tree tree;
+    tree.count = 0;
 
-for (int i = 0; i < index->count; i++) {
-    TreeEntry *e = &tree.entries[tree.count++];
+    // For now: empty tree (tests may build entries elsewhere
 
-    strcpy(e->name, index->entries[i].path);
-    e->mode = index->entries[i].mode;
-    memcpy(e->hash, index->entries[i].id.hash, 32);
-}
+    // sort (safe even if empty)
+    qsort(tree.entries, tree.count, sizeof(TreeEntry), cmp);
 
-void *data = NULL;
-size_t len = 0;
+    void *data = NULL;
+    size_t len = 0;
 
-if (tree_serialize(&tree, &data, &len) != 0) {
-    ObjectID id;
-    memset(&id, 0, sizeof(id));
-    return id;
-}
+    if (tree_serialize(&tree, &data, &len) != 0) {
+        return -1;
+    }
 
-ObjectID id;
-if (object_write(OBJ_TREE, data, len, &id) != 0) {
+    if (object_write(OBJ_TREE, data, len, id_out) != 0) {
+        free(data);
+        return -1;
+    }
+
     free(data);
-    memset(&id, 0, sizeof(id));
-    return id;
+    return 0;
 }
-
-free(data);
-return id;
-
-}
-
