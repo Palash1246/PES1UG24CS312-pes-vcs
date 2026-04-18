@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <openssl/evp.h>
+#include <openssl/sha.h>
 
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
@@ -94,9 +95,73 @@ int object_exists(const ObjectID *id) {
 //
 // Returns 0 on success, -1 on error.
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
-    // TODO: Implement
-    (void)type; (void)data; (void)len; (void)id_out;
+const char *type_str;
+switch (type) {
+    case OBJ_BLOB: type_str = "blob"; break;
+    case OBJ_TREE: type_str = "tree"; break;
+    case OBJ_COMMIT: type_str = "commit"; break;
+    default: return -1;
+}
+
+char header[64];
+int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len);
+
+size_t total_size = header_len + 1 + len;
+unsigned char *buffer = malloc(total_size);
+if (!buffer) return -1;
+
+memcpy(buffer, header, header_len);
+buffer[header_len] = '\0';
+memcpy(buffer + header_len + 1, data, len);
+
+unsigned char hash[32];
+SHA256(buffer, total_size, hash);
+
+memcpy(id_out->hash, hash, 32);
+
+char hex[65];
+for (int i = 0; i < 32; i++) {
+    sprintf(hex + i*2, "%02x", hash[i]);
+}
+hex[64] = '\0';
+
+mkdir(".pes", 0755);
+mkdir(".pes/objects", 0755);
+
+char dir[256];
+snprintf(dir, sizeof(dir), ".pes/objects/%.2s", hex);
+mkdir(dir, 0755);
+
+char path[512];
+snprintf(path, sizeof(path), "%s/%s", dir, hex + 2);
+
+if (access(path, F_OK) == 0) {
+    free(buffer);
+    return 0;
+}
+
+char tmp[512];
+snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+
+int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+if (fd < 0) {
+    free(buffer);
     return -1;
+}
+
+if (write(fd, buffer, total_size) != total_size) {
+    close(fd);
+    free(buffer);
+    return -1;
+}
+
+fsync(fd);
+close(fd);
+
+rename(tmp, path);
+
+free(buffer);
+return 0;
 }
 
 // Read an object from the store.
