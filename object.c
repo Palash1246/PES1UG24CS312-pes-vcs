@@ -154,7 +154,10 @@ if (access(path, F_OK) == 0) {
 
 // temp write
 char tmp[512];
-snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) {
+    free(buffer);
+    return -1;
+}
 
 int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 if (fd < 0) {
@@ -164,14 +167,19 @@ if (fd < 0) {
 
 // write
 ssize_t written = write(fd, buffer, total_size);
-if (written != (ssize_t)total_size) {
+if (written < 0 || written != (ssize_t)total_size) {
     close(fd);
     unlink(tmp);
     free(buffer);
     return -1;
 }
 
-fsync(fd);
+if (fsync(fd) != 0) {
+    close(fd);
+    unlink(tmp);
+    free(buffer);
+    return -1;
+}
 close(fd);
 
 // rename
