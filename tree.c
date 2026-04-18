@@ -150,5 +150,15 @@ if (tree_serialize(&tree, &data, &len) != 0) {
     return id;
 }
 
+ObjectID id;
+if (object_write(OBJ_TREE, data, len, &id) != 0) {
+    free(data);
+    memset(&id, 0, sizeof(id));
+    return id;
+}
+
+free(data);
+return id;
+
 }
 
