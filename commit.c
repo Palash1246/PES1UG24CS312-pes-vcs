@@ -238,4 +238,12 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     }
 
 
+// 5. Write object
+    if (object_write(OBJ_COMMIT, data, len, commit_id_out) != 0) {
+        free(data);
+        return -1;
+    }
+
+    free(data);
+
 }
